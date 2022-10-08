@@ -51,5 +51,5 @@ if __name__ == '__main__':
     if len(sys.argv) == 2:
         model_path = sys.argv[1]
     
-    print(f'Model will be saved as {model_path}')
+    print(f'{model_path} loaded as model')
     execute(model_path)
