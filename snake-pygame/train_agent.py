@@ -50,13 +50,10 @@ def train(model_path_name):
             plot(plot_scores, plot_mean_scores)
             
 if __name__ == '__main__':
-    try:
-        assert len(sys.argv) == 2
-    except AssertionError:
-        print('Please enter a filename to store trained model!')
-        exit(-1)
+    model_path = 'tmp.pth'
 
-    if os.path.exists(os.path.join('model', sys.argv[1])):
-        raise RuntimeError('A file with the name: ' + sys.argv[1] + ' already exists under the /model/ folder!')
-
-    train(sys.argv[1])
+    if len(sys.argv) == 2:
+        model_path = sys.argv[1]
+    
+    print(f'Model will be saved as {model_path}')
+    train(model_path)

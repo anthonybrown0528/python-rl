@@ -33,10 +33,10 @@ def execute(model_filename):
             print('Game', agent.n_games, 'Score', score, 'Record:', record)
 
 if __name__ == '__main__':
-    try:
-        assert len(sys.argv) == 2
-    except AssertionError:
-        print('Please enter a filename to locate existing model!')
-        exit(-1)
+    model_path = 'tmp.pth'
 
-    execute(sys.argv[1])
+    if len(sys.argv) == 2:
+        model_path = sys.argv[1]
+    
+    print(f'Model will be saved as {model_path}')
+    execute(model_path)
