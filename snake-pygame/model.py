@@ -42,6 +42,7 @@ class Linear_QNet(nn.Module):
 class QTrainer:
     def __init__(self, model, lr, gamma):
         self.lr = lr
+        self.q_lr = 1.0
         self.gamma = gamma
         self.model = model
         self.optimizer = optim.Adam(model.parameters(), lr=self.lr)
@@ -67,11 +68,11 @@ class QTrainer:
 
         target = pred.clone()
         for idx in range(len(done)):
-            Q_new = reward[idx]
+            Q_new = reward[idx] - pred[idx][torch.argmax(action).item()]
             if not done[idx]:
-                Q_new = reward[idx] + self.gamma * torch.max(self.model(next_state[idx]))
+                Q_new = reward[idx] + self.gamma * torch.max(self.model(next_state[idx])) - pred[idx][torch.argmax(action).item()]
 
-            target[idx][torch.argmax(action).item()] = Q_new
+            target[idx][torch.argmax(action).item()] = pred[idx][torch.argmax(action).item()] + self.q_lr * Q_new
 
         # 2: Q_new = r + y * max(next_predicted Q value) -> only do this if not done
         # pred.clone()

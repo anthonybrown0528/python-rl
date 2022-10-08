@@ -1,5 +1,8 @@
 from agent import Agent
 from game import SnakeGameAI
+import helper
+
+import numpy as np
 
 import sys
 
@@ -9,6 +12,9 @@ def execute(model_filename):
 
     agent.model.load(model_filename)
     agent.epsilon = 0
+
+    scores = []
+    mean_scores = []
 
     record = 0
     while True:
@@ -27,10 +33,17 @@ def execute(model_filename):
             game.reset()
             agent.n_games += 1
 
+            scores.append(score)
+            scores_np = np.array(scores)
+
+            mean_scores.append(np.average(scores_np))
+            mean_scores_np = np.array(mean_scores)
+
             if score > record:
                 record = score
 
             print('Game', agent.n_games, 'Score', score, 'Record:', record)
+            helper.plot([scores_np, mean_scores_np])
 
 if __name__ == '__main__':
     model_path = 'tmp.pth'
