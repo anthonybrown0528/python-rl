@@ -18,7 +18,7 @@ class Linear_QNet(nn.Module):
 
     def forward(self, x):
         for i in range(0, len(self.nn_layers) - 1):
-            x = F.leaky_relu(self.nn_layers[i](x), 0.01)
+            x = F.relu(self.nn_layers[i](x))
 
         x = self.nn_layers[-1](x)
         return x
@@ -82,3 +82,4 @@ class QTrainer:
         loss.backward()
 
         self.optimizer.step()
+        return float(loss)

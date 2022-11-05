@@ -1,18 +1,31 @@
 import matplotlib.pyplot as plt
-from IPython import display
 
-plt.ion()
+# plt.ion()
 
-def plot(data_plots):
-    display.clear_output(wait=True)
-    display.display(plt.gcf())
-    plt.clf()
+def init_subplots(num_plots, subplot_description):
+    fig, ax = plt.subplots(num_plots)
 
-    plt.title('Training...')
-    plt.xlabel('Number of Games')
-    #plt.ylim(ymin=0)
+    for i in range(num_plots):
+        subplot_title = subplot_description[i][0] + ' vs. ' + subplot_description[i][1]
 
-    for data in data_plots:
-        plt.plot(data)
-        plt.text(len(data)-1, data[-1], str(data[-1]))
+        ax[i].set_title(subplot_title)
+
+        ax[i].set_xlabel(subplot_description[i][1])
+        ax[i].set_ylabel(subplot_description[i][0])
+
+    return fig, ax
+
+def plot(data_plots, fig, ax):
+    # display.clear_output(wait=True)
+    # display.display(plt.gcf())
+    # plt.clf()
+
+    fig.suptitle('Training...')
+
+    num_plots = len(data_plots)
+    for i in range(num_plots):
+        data = data_plots[i]
+
+        ax[i].plot(data)
+    
     plt.pause(0.1)

@@ -7,7 +7,7 @@ from game import SnakeGameAI, Direction, Point
 from model import Linear_QNet, QTrainer
 from helper import plot
 
-BATCH_SIZE = 5000
+BATCH_SIZE = 1000
 MAX_MEMORY = 100 * BATCH_SIZE
 LR = 0.001
 
@@ -77,8 +77,12 @@ class Agent:
         else:
             mini_sample = self.memory
 
+        cost = 0.0
+
         states, actions, rewards, next_states, dones = zip(*mini_sample)
-        self.trainer.train_step(np.array(states), np.array(actions), np.array(rewards), np.array(next_states), np.array(dones))
+        cost += self.trainer.train_step(np.array(states), np.array(actions), np.array(rewards), np.array(next_states), np.array(dones))
+        
+        return cost
 
     def train_short_memory(self, state, action, reward, next_state, done):
         self.trainer.train_step(state, action, reward, next_state, done)
