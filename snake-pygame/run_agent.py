@@ -1,17 +1,15 @@
-from agent import Agent
+from machine_learning.agent import Agent
 from game import SnakeGameAI
-import helper
 
 import numpy as np
 
 import sys
 
 def execute(model_filename):
-    agent = Agent()
+    agent = Agent([11, 1024, 3], eval=True)
     game = SnakeGameAI()
 
-    agent.model.load(model_filename)
-    agent.epsilon = 0
+    agent.network.load(model_filename)
 
     scores = []
     mean_scores = []
@@ -19,14 +17,13 @@ def execute(model_filename):
     record = 0
     while True:
         # get old state
-        state_old = agent.get_state(game)
+        state_old = game.get_state()
 
         # get move
         final_move = agent.get_action(state_old)
 
         # perform move and get new state
         _, done, score = game.play_step(final_move)
-        agent.get_state(game)
 
         if done:
             # train long memory, plot results
@@ -37,13 +34,11 @@ def execute(model_filename):
             scores_np = np.array(scores)
 
             mean_scores.append(np.average(scores_np))
-            mean_scores_np = np.array(mean_scores)
 
             if score > record:
                 record = score
 
             print('Game', agent.n_games, 'Score', score, 'Record:', record)
-            helper.plot([scores_np, mean_scores_np])
 
 if __name__ == '__main__':
     model_path = 'tmp.pth'
