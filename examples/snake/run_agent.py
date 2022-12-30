@@ -2,8 +2,10 @@ import sys
 import argparse
 import numpy as np
 
-from machine_learning.agent import Agent
 from game import SnakeGameAI
+
+sys.path.append('../../..')
+from machine_learning.agent import Agent
 
 def train(model_path_name):
     plot_scores = []
@@ -19,6 +21,7 @@ def train(model_path_name):
     while True:
         # get old state
         state_old = game.get_state()
+        print(state_old.shape)
 
         # get move
         final_move = agent.get_action(state_old)

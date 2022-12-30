@@ -6,6 +6,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 import os
+import traceback
 
 
 class DQN:
@@ -56,9 +57,11 @@ class DQN:
                 best_action = torch.argmax(action).item()
                 Q_new = reward[idx] - pred[idx][best_action]
             except IndexError as ex:
+                print(traceback.print_exc())
                 print(ex)
                 print('Invalid index of action')
                 print(action)
+                print(pred[idx])
                 exit(1)
             if not done[idx]:
                 Q_new = reward[idx] + self.gamma * torch.max(self.model.forward(next_state[idx])) - pred[idx][torch.argmax(action).item()]
