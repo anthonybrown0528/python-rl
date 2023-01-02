@@ -39,7 +39,8 @@ class Agent:
         states, actions, rewards, next_states, dones = zip(*mini_sample)
         # train the model and retrieve the sum of the loss function
         cost = self.network.train_step(np.array(states), np.array(actions), np.array(rewards), np.array(next_states), np.array(dones))
-    
+        cost /= len(mini_sample)
+
         return cost
 
     def train_short_memory(self, state, action, reward, next_state, done):
