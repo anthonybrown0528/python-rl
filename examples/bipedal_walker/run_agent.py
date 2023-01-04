@@ -1,5 +1,7 @@
 import sys
+import yaml
 import gym
+import argparse
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,15 +17,25 @@ def get_action_from_discrete(discrete_action, discrete_action_space):
 
     action = np.zeros(4, dtype=np.float32)
     for joint in range(dof):
-        exp = joint + 1
+        exp = joint
         power = discretization**exp
 
-        action_idx = (action_idx // power) % discretization
-        action[joint] = discrete_action_space[action_idx][joint]
+        action_space_idx = (action_idx // power) % discretization
+        action[joint] = discrete_action_space[action_space_idx][joint]
 
     return action
 
-def train(num_observation, discretization, dof, gui=False):
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Trains/evaluates a learning model playing the Snake game')
+
+    parser.add_argument('-f', '--filename', default='model.pth', help='An optional argument for specifying file name of the model to store or load')
+    parser.add_argument('-e', '--eval', action='store_true', help='An optional argument for specifying the program to run in evaluation mode instead of training mode')
+
+    args = parser.parse_args()
+
+    return args.filename, args.eval
+
+def train(num_observation, discretization, dof, gui=False, filename='./model.pth'):
     discrete_action_space = np.linspace([-1.0] * dof, [1.0] * dof, discretization)
 
     # Construct environment
@@ -34,15 +46,15 @@ def train(num_observation, discretization, dof, gui=False):
         env = gym.make('BipedalWalker-v3')
 
     # Construct an agent
-    agent = Agent([num_observation, 1024, discretization**dof])
-    agent.network.epsilon = 200
+    agent = Agent([num_observation, 256, discretization**dof], batch_size=1000, lr=1e-5)
+    agent.gamma = 1.0
 
     # Used to store cost over episodes
     costs = []
 
     try:
         # Run training episodes
-        num_episodes = 300
+        num_episodes = 100
         for episode in range(num_episodes):
             old_state = env.reset()
             old_state = old_state[0]
@@ -79,13 +91,13 @@ def train(num_observation, discretization, dof, gui=False):
         pass
 
     print('Saving model to file...')
-    agent.network.save()
+    agent.network.save(filename)
 
     # Generate graph of model metrics
     plt.plot(costs)
     plt.show()
 
-def evaluate(num_observation, discretization, dof, gui=False):
+def evaluate(num_observation, discretization, dof, gui=False, filename='./model.pth'):
     discrete_action_space = np.linspace([-1.0] * dof, [1.0] * dof, discretization)
 
     # Construct environment
@@ -97,11 +109,10 @@ def evaluate(num_observation, discretization, dof, gui=False):
     # Construct an agent
     agent = Agent([num_observation, 1024, discretization**dof])
 
-    agent.network.load()
+    agent.network.load(filename)
     agent.network.epsilon = 0
 
     agent.network.model.eval()
-    agent.network.model.zero_grad()
 
     # Used to store cost over episodes
     scores = []
@@ -149,17 +160,21 @@ def evaluate(num_observation, discretization, dof, gui=False):
 
 
 def main():
-    eval = False
+
     with_gui = False
 
     num_observation = 24
     discretization = 10
     dof = 4
 
+    # Parse CLI arguments
+    filename, eval = parse_arguments()
+    
+
     if eval:
-        evaluate(num_observation, discretization, dof, with_gui)
+        evaluate(num_observation, discretization, dof, with_gui, filename=filename)
     else:
-        train(num_observation, discretization, dof, with_gui)
+        train(num_observation, discretization, dof, with_gui, filename=filename)
 
 if __name__ == '__main__':
     main()

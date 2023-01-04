@@ -6,16 +6,13 @@ from machine_learning.replay_buffer import ReplayBuffer
 
 class Agent:
     
-    def __init__(self, layers, eval=False):
-        self.DEFAULT_BATCH_SIZE = 1000
-        self.DEFAULT_MAX_MEMORY = 100 * self.DEFAULT_BATCH_SIZE
-        self.DEFAULT_LR = 0.001
+    def __init__(self, layers, batch_size=1000, lr=0.001, eval=False):
+        self.DEFAULT_MAX_MEMORY = 100 * batch_size
 
-        self.n_games = 0
         self.gamma = 0.90 # discount rate
-        self.batch_size = self.DEFAULT_BATCH_SIZE
+        self.batch_size = batch_size
         self.memory = ReplayBuffer(maxlen=self.DEFAULT_MAX_MEMORY)
-        self.network = DQN(layers=layers, lr=self.DEFAULT_LR, gamma=self.gamma)
+        self.network = DQN(layers=layers, lr=lr, gamma=self.gamma)
 
         # Disable exploration to evaluate model
         if eval:

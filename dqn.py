@@ -29,7 +29,7 @@ class DQN:
         self.lr = lr
         self.q_lr = 1.0
         self.gamma = gamma
-        self.epsilon = 200 # randomness
+        self.epsilon = 0.9
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
 
@@ -79,10 +79,9 @@ class DQN:
         return float(loss)
 
     def get_action(self, state):
-        # random moves: tradeoff between exploration / exploitation
-        # self.epsilon = 200 - self.n_games
+        self.epsilon *= self.epsilon
         final_move = [0] * self.output_vars
-        if random.randint(0, 200) < self.epsilon:
+        if random.random() > self.epsilon:
             move = random.randint(0, self.output_vars - 1)
             final_move[move] = 1
         else:
