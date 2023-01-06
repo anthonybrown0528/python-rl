@@ -18,10 +18,14 @@ def train(model_path_name):
     agent = Agent([11, 1024, 3])
     game = SnakeGameAI()
 
+    n_games = 0
+
+    decay_rate = 0.99
+
+
     while True:
         # get old state
         state_old = game.get_state()
-        print(state_old.shape)
 
         # get move
         final_move = agent.get_action(state_old)
@@ -40,8 +44,8 @@ def train(model_path_name):
             # train long memory, plot results
             game.reset()
 
-            agent.n_games += 1
-            agent.network.epsilon -= 1
+            n_games += 1
+            agent.network.epsilon *= decay_rate
 
             cost = agent.train_long_memory()
             plot_cost.append(cost)
@@ -50,11 +54,11 @@ def train(model_path_name):
                 record = score
                 agent.network.save(model_path_name)
 
-            print('Game', agent.n_games, 'Score', score, 'Record:', record)
+            print('Game', n_games, 'Score', score, 'Record:', record)
 
             plot_scores.append(score)
             total_score += score
-            mean_score = total_score / agent.n_games
+            mean_score = total_score / n_games
             plot_mean_scores.append(mean_score)
 
 def evauluate(model_filename):
@@ -80,7 +84,7 @@ def evauluate(model_filename):
         if done:
             # train long memory, plot results
             game.reset()
-            agent.n_games += 1
+            n_games += 1
 
             scores.append(score)
             scores_np = np.array(scores)
@@ -90,7 +94,7 @@ def evauluate(model_filename):
             if score > record:
                 record = score
 
-            print('Game', agent.n_games, 'Score', score, 'Record:', record)
+            print('Game', n_games, 'Score', score, 'Record:', record)
 
 if __name__ == '__main__':
 

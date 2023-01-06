@@ -6,7 +6,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 import os
-import traceback
 
 
 class DQN:
@@ -27,9 +26,8 @@ class DQN:
         self.input_vars = layers[0]
         self.output_vars = layers[-1]
         self.lr = lr
-        self.q_lr = 1.0
         self.gamma = gamma
-        self.epsilon = 0.9
+        self.epsilon = 0.99
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
 
@@ -38,6 +36,7 @@ class DQN:
         next_state = torch.tensor(next_state, dtype=torch.float)
         action = torch.tensor(action, dtype=torch.long)
         reward = torch.tensor(reward, dtype=torch.float)
+        done = torch.tensor(done, dtype=torch.bool)
         # (n, x)
 
         if len(state.shape) == 1:
@@ -46,42 +45,45 @@ class DQN:
             next_state = torch.unsqueeze(next_state, 0)
             action = torch.unsqueeze(action, 0)
             reward = torch.unsqueeze(reward, 0)
-            done = (done, )
+            done = torch.unsqueeze(done, 0)
 
-        # 1: predicted Q values with the current state
-        pred = self.model.forward(state)
+        # 1: predicted Q values with the current and next state
+        Q_this = self.model.forward(state)
+        Q_next = self.model.forward(next_state)
 
-        target = pred.clone()
-        for idx in range(len(done)):
-            try:
-                best_action = torch.argmax(action).item()
-                Q_new = reward[idx] - pred[idx][best_action]
-            except IndexError as ex:
-                print(traceback.print_exc())
-                print(ex)
-                print('Invalid index of action')
-                print(action)
-                print(pred[idx])
-                exit(1)
-            if not done[idx]:
-                Q_new = reward[idx] + self.gamma * torch.max(self.model.forward(next_state[idx])) - pred[idx][torch.argmax(action).item()]
+        # Copy of predictions to update with more accuate Q-values
+        # Used to compare with actual prediction
+        target = Q_this.clone()
 
-            target[idx][torch.argmax(action).item()] = pred[idx][torch.argmax(action).item()] + self.q_lr * Q_new
+        # Extract indices of actions
+        action_idc = torch.argmax(action, dim=1)
+        action_idc = torch.unsqueeze(action_idc, -1)
 
-        # 2: Q_new = r + y * max(next_predicted Q value) -> only do this if not done
-        # pred.clone()
-        # preds[argmax(action)] = Q_new
+        # Update estimates of Q-values
+        final_Q = reward
+        mid_Q = reward + self.gamma * torch.max(Q_next, dim=1).values
+
+        # Include predicted discounted reward if not done
+        Q_new = torch.where(done, final_Q, mid_Q)
+        Q_new = torch.unsqueeze(Q_new, -1)
+
+        # Update target with better Q-value estimates
+        target = torch.scatter(input=target, dim=1, index=action_idc, src=Q_new)
+
+        # Reset tensor gradients to improve runtime performance
         self.optimizer.zero_grad()
-        loss = self.criterion(target, pred)
+        
+        # Compute loss
+        loss = self.criterion(Q_this, target)
         loss.backward()
 
         self.optimizer.step()
         return float(loss)
 
     def get_action(self, state):
-        self.epsilon *= self.epsilon
+        # random moves: tradeoff between exploration / exploitation
         final_move = [0] * self.output_vars
-        if random.random() > self.epsilon:
+        if random.random() < self.epsilon:
             move = random.randint(0, self.output_vars - 1)
             final_move[move] = 1
         else:
