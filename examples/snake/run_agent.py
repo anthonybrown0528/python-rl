@@ -15,7 +15,7 @@ def train(model_path_name):
     total_score = 0
     record = 0
 
-    agent = Agent([11, 1024, 3])
+    agent = Agent([11, 1024, 3], lr=1e-5)
     game = SnakeGameAI()
 
     n_games = 0
@@ -35,7 +35,7 @@ def train(model_path_name):
         state_new = game.get_state()
 
         # train short memory
-        agent.train_short_memory(state_old, final_move, reward, state_new, done)
+        # agent.train_short_memory(state_old, final_move, reward, state_new, done)
 
         # remember
         agent.remember(state_old, final_move, reward, state_new, done)
@@ -45,7 +45,7 @@ def train(model_path_name):
             game.reset()
 
             n_games += 1
-            agent.network.epsilon *= decay_rate
+            agent.epsilon_decay(decay_rate)
 
             cost = agent.train_long_memory()
             plot_cost.append(cost)

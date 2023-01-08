@@ -7,26 +7,26 @@ from machine_learning.replay_buffer import ReplayBuffer
 class Agent:
     
     def __init__(self, layers, batch_size=1000, lr=0.001, eval=False):
-        self.DEFAULT_MAX_MEMORY = 100 * batch_size
-
-        self.gamma = 0.90 # discount rate
-        self.batch_size = batch_size
-        self.memory = ReplayBuffer(maxlen=self.DEFAULT_MAX_MEMORY)
-        self.network = DQN(layers=layers, lr=lr, gamma=self.gamma)
+        self._gamma = 0.90 # discount rate
+        self._batch_size = batch_size
+        self._memory = ReplayBuffer(maxlen=self._batch_size * 100)
+        self._network = DQN(layers=layers, lr=lr, gamma=self._gamma)
 
         # Disable exploration to evaluate model
         if eval:
-            self.network.epsilon = 0
+            self._network.epsilon = 0
 
-        # Making the code device-agnostic
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.network.model.to(device)
+    def set_gamma(self, gamma):
+        self._gamma = gamma
+
+    def get_gamma(self) -> float:
+        return self._gamma
 
     def remember(self, state, action, reward, next_state, done):
-        self.memory.add((state, action, reward, next_state, done)) # popleft if MAX_MEMORY is reached
+        self._memory.add((state, action, reward, next_state, done)) # popleft if MAX_MEMORY is reached
 
     def train_long_memory(self):
-        mini_sample = self.memory.get_training_samples(size=self.batch_size)
+        mini_sample = self._memory.get_training_samples(size=self._batch_size)
 
         # end training prematurely if there are no memory samples
         if len(mini_sample) == 0:
@@ -35,13 +35,23 @@ class Agent:
         # extract data for training
         states, actions, rewards, next_states, dones = zip(*mini_sample)
         # train the model and retrieve the sum of the loss function
-        cost = self.network.train_step(np.array(states), np.array(actions), np.array(rewards), np.array(next_states), np.array(dones))
+        cost = self._network.train_step(np.array(states), np.array(actions), np.array(rewards), np.array(next_states), np.array(dones))
         cost /= len(mini_sample)
 
         return cost
 
     def train_short_memory(self, state, action, reward, next_state, done):
-        self.network.train_step(state, action, reward, next_state, done)
+        self._network.train_step(state, action, reward, next_state, done)
 
     def get_action(self, state):
-        return self.network.get_action(state)
+        return self._network.get_action(state)
+
+    def epsilon_decay(self, decay_rate):
+        new_epsilon = self._network.get_epsilon() * decay_rate
+        self._network.set_epsilon(new_epsilon)
+
+    def save(self, file_name='model.pth'):
+        self._network.save(file_name=file_name)
+    
+    def load(self, file_name='model.pth'):
+        self._network.load(file_name=file_name)
