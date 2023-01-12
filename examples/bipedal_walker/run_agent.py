@@ -47,17 +47,17 @@ def train(num_observation, discretization, dof, gui=False, filename='./model.pth
         env = gym.make('BipedalWalker-v3')
 
     # Construct an agent
-    agent = Agent([num_observation, 1024, discretization**dof], lr=1e-10)
+    agent = Agent([num_observation, 40, 40, discretization**dof], lr=1e-10)
     agent.set_gamma(0.9)
 
-    decay_rate = 0.99
+    decay_rate = 0.999
 
     # Used to store cost over episodes
     costs = []
 
     try:
         # Run training episodes
-        num_episodes = 300
+        num_episodes = 2000
         for episode in range(num_episodes):
             old_state = env.reset()
             old_state = old_state[0]
@@ -77,7 +77,7 @@ def train(num_observation, discretization, dof, gui=False, filename='./model.pth
 
                 # Train with and record in replay buffer
                 # agent.train_short_memory(old_state, discrete_action, reward, new_state, done)
-                agent.remember(old_state, discrete_action, reward, new_state, done)
+                agent.remember(old_state, discrete_action, reward, new_state, term)
 
             agent.epsilon_decay(decay_rate)
 

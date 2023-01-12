@@ -16,6 +16,12 @@ class DQN(Model):
 
         # Initialize an empty list of layers for the neural network
         self._model = nn.Sequential()
+
+        # Making the code device-agnostic
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self._model.to(device)
+
+        # build the learning model with the described layers
         self._build_model(layers=layers)
 
         self._input_vars = layers[0]
@@ -25,10 +31,6 @@ class DQN(Model):
         self._epsilon = 0.99
         self._optimizer = optim.Adam(self._model.parameters(), lr=self._lr)
         self._criterion = nn.MSELoss()
-
-        # Making the code device-agnostic
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self._model.to(device)
 
     def set_epsilon(self, epsilon):
         self._epsilon = epsilon
