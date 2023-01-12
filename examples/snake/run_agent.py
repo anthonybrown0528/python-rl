@@ -15,7 +15,7 @@ def train(model_path_name):
     total_score = 0
     record = 0
 
-    agent = Agent([11, 1024, 3], lr=1e-5)
+    agent = Agent([11, 1024, 3])
     game = SnakeGameAI()
 
     n_games = 0

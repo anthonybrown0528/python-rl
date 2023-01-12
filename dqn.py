@@ -6,8 +6,10 @@ import torch.optim as optim
 
 import os
 
+from machine_learning.model import Model
 
-class DQN:
+
+class DQN(Model):
 
     def __init__(self, layers, lr, gamma):
         super().__init__()
