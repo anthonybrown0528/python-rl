@@ -6,10 +6,12 @@ from machine_learning.replay_buffer import ReplayBuffer
 
 class Agent:
     
-    def __init__(self, layers, batch_size=1000, lr=0.001, eval=False):
+    def __init__(self, layers, batch_size=1000, memory_size=1000000, lr=0.001, eval=False):
+        assert batch_size <= memory_size
+
         self._gamma = 0.90 # discount rate
         self._batch_size = batch_size
-        self._memory = ReplayBuffer(maxlen=self._batch_size * 100)
+        self._memory = ReplayBuffer(maxlen=memory_size)
         self._network = DQN(layers=layers, lr=lr, gamma=self._gamma)
 
         # Disable exploration to evaluate model
@@ -45,6 +47,12 @@ class Agent:
 
     def get_action(self, state):
         return self._network.get_action(state)
+
+    def set_epsilon(self, epsilon):
+        self._network.set_epsilon(epsilon)
+
+    def set_min_epsilon(self, min_epsilon):
+        self._network.set_min_epsilon(min_epsilon)
 
     def epsilon_decay(self, decay_rate):
         new_epsilon = self._network.get_epsilon() * decay_rate
