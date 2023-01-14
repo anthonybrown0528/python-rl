@@ -9,132 +9,36 @@ import os
 from machine_learning.model import Model
 
 
-class DQN(Model):
+class DQN(nn.Module):
 
-    def __init__(self, layers, lr, gamma):
-        super().__init__()
+    EPS_START = 0.9
+    EPS_END = 0.05
+    EPS_DECAY = 1000
 
-        # build the learning model with the described layers
-        self._train_model = self._build_model(layers=layers)
-        self._target_model = self._build_model(layers=layers)
+    def __init__(self, n_observations, n_actions):
+        super(DQN, self).__init__()
 
-        self._input_vars = layers[0]
-        self._output_vars = layers[-1]
-        self._lr = lr
-        self._gamma = gamma
-        self.set_epsilon(0.99)
-        self._min_epsilon = 0.01
-        self._optimizer = optim.Adam(self._train_model.parameters(), lr=self._lr, amsgrad=True)
-        self._criterion = nn.MSELoss()
+        self.model = nn.Sequential()
 
-    def set_epsilon(self, epsilon):
-        self._epsilon = epsilon
+        self.layer1 = nn.Linear(n_observations, 128)
+        self.layer2 = nn.Linear(128, 128)
+        self.layer3 = nn.Linear(128, n_actions)
 
-    def set_min_epsilon(self, min_epsilon):
-        self._min_epsilon = min_epsilon
-    
-    def get_epsilon(self) -> float:
-        return self._epsilon
+        self.model.append(self.layer1)
+        self.model.append(nn.ReLU())
 
-    def _build_model(self, layers):
-        model = nn.Sequential()
+        self.model.append(self.layer2)
+        self.model.append(nn.ReLU())
 
-        # Making the code device-agnostic
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        model.to(device)
+        self.model.append(self.layer3)
 
-        # Add input layer and hidden layers to the neural network
-        for i in range(len(layers) - 2):
-            linear = nn.Linear(layers[i], layers[i + 1])
-
-            model.append(linear)
-            model.append(nn.ReLU())
-
-        model.append(nn.Linear(layers[-2], layers[-1]))
-        return model
-
-    def train_step(self, state, action, reward, next_state, done):
-        state = torch.tensor(state, dtype=torch.float)
-        next_state = torch.tensor(next_state, dtype=torch.float)
-        action = torch.tensor(action, dtype=torch.long)
-        reward = torch.tensor(reward, dtype=torch.float)
-        done = torch.tensor(done, dtype=torch.bool)
-        # (n, x)
-
-        if len(state.shape) == 1:
-            # (1, x)
-            state = torch.unsqueeze(state, 0)
-            next_state = torch.unsqueeze(next_state, 0)
-            action = torch.unsqueeze(action, 0)
-            reward = torch.unsqueeze(reward, 0)
-            done = torch.unsqueeze(done, 0)
-
-        # 1: predicted Q values with the current and next state
-        Q_this = self._train_model.forward(state)
-        Q_next = self._train_model.forward(next_state)
-
-        # Copy of predictions to update with more accuate Q-values
-        # Used to compare with actual prediction
-        target = Q_this.clone()
-
-        # Extract indices of actions
-        action_idc = torch.argmax(action, dim=1)
-        action_idc = torch.unsqueeze(action_idc, -1)
-
-        # Update estimates of Q-values
-        final_Q = reward
-        mid_Q = reward + self._gamma * torch.max(Q_next, dim=1).values
-
-        # # Include predicted discounted reward if not done
-        Q_new = torch.where(done, final_Q, mid_Q)
-        Q_new = torch.unsqueeze(Q_new, -1)
-
-        # Update target with better Q-value estimates
-        target = torch.scatter(input=target, dim=1, index=action_idc, src=Q_new)
-
-        # Compute loss
-        loss = self._criterion(Q_this, target)
-
-        # Reset tensor gradients to improve runtime performance
-        self._optimizer.zero_grad()
-        loss.backward()
-
-        self._optimizer.step()
-
-        # self._target_model.load_state_dict(self._train_model.state_dict())
-
-        return float(loss)
-
-    def get_action(self, state):
-        # random moves: tradeoff between exploration / exploitation
-        final_move = [0] * self._output_vars
-        true_epsilon = max(self._min_epsilon, self._epsilon)
-        if random.random() < true_epsilon and False:
-            move = random.randint(0, self._output_vars - 1)
-            final_move[move] = 1
-        else:
-            state0 = torch.tensor(state, dtype=torch.float)
-            prediction = self._train_model.forward(state0)
-
-            move = torch.argmax(prediction).item()
-            final_move[move] = 1
-        
-        return final_move
+    # Called with either one element to determine next action, or a batch
+    # during optimization. Returns tensor([[left0exp,right0exp]...]).
+    def forward(self, x):
+        return self.model.forward(x)
 
     def save(self, file_name='model.pth'):
-        model_folder_path = './model'
-        if not os.path.exists(model_folder_path):
-            os.makedirs(model_folder_path)
-        
-        file_name = os.path.join(model_folder_path, file_name)
-        torch.save(self._train_model, file_name)
+        torch.save(self.model, file_name)
 
     def load(self, file_name='model.pth'):
-        model_folder_path = './model'
-        file_name = os.path.join(model_folder_path, file_name)
-
-        if not os.path.exists(file_name):
-            raise FileNotFoundError()
-
-        self.set_epsilon(0.0)
-        self._train_model = torch.load(file_name)
+        self.model = torch.load(file_name)
