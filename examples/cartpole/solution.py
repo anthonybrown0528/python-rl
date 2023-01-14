@@ -1,27 +1,24 @@
 import gym
 import math
 import random
-from collections import namedtuple
-from itertools import count
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
 
 import sys
 sys.path.append('../../..')
 
-from machine_learning.replay_buffer import ReplayBuffer
 from machine_learning.dqn import DQN
+from machine_learning.agent import Agent
 
 env = gym.make('CartPole-v1')
+# Get number of actions from gym action space
+n_actions = env.action_space.n
+# Get the number of state observations
+state, _ = env.reset()
+n_observations = len(state)
 
 # if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
-
 
 # BATCH_SIZE is the number of transitions sampled from the replay buffer
 # GAMMA is the discount factor as mentioned in the previous section
@@ -31,104 +28,25 @@ Transition = namedtuple('Transition',
 # TAU is the update rate of the target network
 # LR is the learning rate of the AdamW optimizer
 BATCH_SIZE = 128
+MEMORY_SIZE = 10000
 GAMMA = 0.99
 TAU = 0.005
 LR = 1e-4
 
-# Get number of actions from gym action space
-n_actions = env.action_space.n
-# Get the number of state observations
-state, _ = env.reset()
-n_observations = len(state)
+agent = Agent(n_observations, n_actions, GAMMA, BATCH_SIZE, MEMORY_SIZE, LR, device=device)
 
-policy_net = DQN(n_observations, n_actions).to(device)
-target_net = DQN(n_observations, n_actions).to(device)
-target_net.load_state_dict(policy_net.state_dict())
+def evaluate(num_episodes):
+    agent.policy_net.load('model/model.pth')
+    steps_done = 0
 
-optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
-memory = ReplayBuffer(10000)
-
-steps_done = 0
-
-
-def select_action(state):
-    global steps_done
-    sample = random.random()
-
-    eps_threshold = DQN.EPS_START * math.exp(-steps_done / DQN.EPS_DECAY)
-    eps_threshold = max(eps_threshold, DQN.EPS_END)
-
-    steps_done += 1
-    if sample > eps_threshold:
-        with torch.no_grad():
-            # we pick action with the larger expected reward.
-            return torch.argmax(policy_net.forward(state)).reshape((1, 1))
-    else:
-        return torch.tensor(env.action_space.sample(), device=device, dtype=torch.long).reshape((1, 1))
-
-def optimize_model():
-    if len(memory) < BATCH_SIZE:
-        return
-    transitions = memory.sample(BATCH_SIZE)
-    # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
-    # detailed explanation). This converts batch-array of Transitions
-    # to Transition of batch-arrays.
-    batch = Transition(*zip(*transitions))
-
-    # Compute a mask of non-final states and concatenate the batch elements
-    # (a final state would've been the one after which simulation ended)
-    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
-                                          batch.next_state)), device=device, dtype=torch.bool)
-    non_final_next_states = torch.cat([s for s in batch.next_state
-                                                if s is not None])
-    state_batch = torch.cat(batch.state)
-    action_batch = torch.cat(batch.action)
-    reward_batch = torch.cat(batch.reward)
-
-    # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
-    # columns of actions taken. These are the actions which would've been taken
-    # for each batch state according to policy_net
-    state_action_values = policy_net(state_batch).gather(1, action_batch)
-
-    # Compute V(s_{t+1}) for all next states.
-    # Expected values of actions for non_final_next_states are computed based
-    # on the "older" target_net; selecting their best reward with max(1)[0].
-    # This is merged based on the mask, such that we'll have either the expected
-    # state value or 0 in case the state was final.
-    next_state_values = torch.zeros(BATCH_SIZE, device=device)
-    with torch.no_grad():
-        next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0]
-    # Compute the expected Q values
-    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
-
-    # Compute Huber loss
-    criterion = nn.SmoothL1Loss()
-    loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
-
-    # Optimize the model
-    optimizer.zero_grad()
-    loss.backward()
-    # In-place gradient clipping
-    torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
-    optimizer.step()
-
-def evaluate():
-    if torch.cuda.is_available():
-        num_episodes = 600
-    else:
-        num_episodes = 300
-
-    policy_net.load('model/model.pth')
-
-    for i_episode in range(num_episodes):
+    for _ in range(num_episodes):
         # Initialize the environment and get it's state
-        if gym.__version__[:4] == '0.26':
-            state, _ = env.reset()
-        elif gym.__version__[:4] == '0.25':
-            state, _ = env.reset(return_info=True)
+        state, _ = env.reset()
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
-        for t in count():
-            action = select_action(state)
+        done = False
+        while not done:
+            action = agent.select_action(state, steps_done, env)
+            steps_done += 1
             observation, reward, terminated, truncated, _ = env.step(action.item())
             reward = torch.tensor([reward], device=device)
             done = terminated or truncated
@@ -147,20 +65,19 @@ def evaluate():
 
     print('Complete')
 
-def train():
-    if torch.cuda.is_available():
-        num_episodes = 600
-    else:
-        num_episodes = 300
-
+def train(num_episodes):
+    steps_done = 0
     for i_episode in range(num_episodes):
         # Initialize the environment and get it's state
         state, _ = env.reset()
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
-        for t in count():
-            action = select_action(state)
-            # print(action.shape)
+        done = False
+        score = 0
+        while not done:
+            action = agent.select_action(state, steps_done, env)
+            steps_done += 1
             observation, reward, terminated, truncated, _ = env.step(action.item())
+            score += reward
             reward = torch.tensor([reward], device=device)
             done = terminated or truncated
 
@@ -170,28 +87,28 @@ def train():
                 next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
             # Store the transition in memory
-            memory.push((state, action, next_state, reward))
+            agent.memory.push((state, action, next_state, reward))
 
             # Move to the next state
             state = next_state
 
             # Perform one step of the optimization (on the policy network)
-            optimize_model()
+            agent.optimize_model()
 
             # Soft update of the target network's weights
             # θ′ ← τ θ + (1 −τ )θ′
-            target_net_state_dict = target_net.state_dict()
-            policy_net_state_dict = policy_net.state_dict()
+            target_net_state_dict = agent.target_net.state_dict()
+            policy_net_state_dict = agent.policy_net.state_dict()
             for key in policy_net_state_dict:
                 target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
-            target_net.load_state_dict(target_net_state_dict)
+            agent.target_net.load_state_dict(target_net_state_dict)
 
             if done:
-                print(f'Game {i_episode} Score: {t + 1}')
+                print(f'Game {i_episode} Score: {score + 1}')
                 break
 
 
-    policy_net.save('model/model.pth')
+    agent.policy_net.save('model/model.pth')
     print('Complete')
 
-train()
+train(300)
