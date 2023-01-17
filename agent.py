@@ -44,8 +44,14 @@ class Agent:
 
         self._steps_done = 0
 
-    def set_gamma(self, gamma):
-        self._gamma = gamma
+    def get_n_observations(self):
+        return self._n_observations
+
+    def get_n_actions(self):
+        return self._n_actions
+
+    def get_device(self):
+        return self._device
 
     def get_gamma(self) -> float:
         return self._gamma
@@ -64,7 +70,7 @@ class Agent:
             return
 
         Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward', 'done'))
+                        ('state', 'action', 'next_state', 'reward'))
 
         transitions = self.memory.sample(self._batch_size)
         # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
@@ -116,14 +122,46 @@ class Agent:
             target_net_state_dict[key] = policy_net_state_dict[key]*self.TAU + target_net_state_dict[key]*(1-self.TAU)
         self.target_net.load_state_dict(target_net_state_dict)
 
+    def play_episode(self, env, eval=False):
+        
+        # Initialize the environment and get it's state
+        state, _ = env.reset()
+        state = torch.tensor(state, dtype=torch.float32, device=self._device).reshape((1, self._n_observations))
 
-    def select_action(self, state, steps_done, env):
+        score = 0
+        done = False
+        while not done:
+            action = self.select_action(state, env)
+            observation, reward, terminated, truncated, _ = env.step(action.item())
+
+            reward = torch.tensor(reward, device=self._device).reshape((1,))
+            observation = torch.tensor(observation, dtype=torch.float32, device=self._device).reshape((1, self._n_observations))
+
+            next_state = None if terminated else observation
+
+            if not eval:
+
+                # Store the transition in memory
+                self.memory.push((state, action, next_state, reward))
+                # Perform one step of the optimization (on the policy network)
+                self.optimize_model()
+
+            # Move to the next state
+            state = next_state
+
+            score += reward.item()
+            done = terminated or truncated
+
+        return score
+
+
+    def select_action(self, state, env):
         sample = random.random()
 
-        eps_threshold = DQN.EPS_START * math.exp(-steps_done / DQN.EPS_DECAY)
+        eps_threshold = DQN.EPS_START * math.exp(-self._steps_done / DQN.EPS_DECAY)
         eps_threshold = max(eps_threshold, DQN.EPS_END)
 
-        steps_done += 1
+        self.set_steps_done(self._steps_done + 1)
         if sample > eps_threshold:
             with torch.no_grad():
                 # we pick action with the larger expected reward.
