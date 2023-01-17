@@ -1,92 +1,84 @@
-import sys
-import argparse
+import gym
+import torch
 import numpy as np
+
+import argparse
 
 from game import SnakeGameAI
 
+import sys
 sys.path.append('../../..')
+
+class SnakeGameEnv:
+    def __init__(self):
+        self._game = SnakeGameAI()
+
+    def reset(self):
+        self._game.reset()
+        state = self._game.get_state()
+
+        return state, 0
+
+    def step(self, action):
+        action_space = np.zeros(3)
+        action_space[action] = 1
+
+        reward, termination, _ = self._game.play_step(action_space)
+        observation = self._game.get_state()
+
+        return observation, reward, termination, False, 0
+
 from machine_learning.agent import Agent
 
-def play_game(game, agent, decay_rate):
-    done = False
-
-    while not done:
-        # get old state
-        state_old = game.get_state()
-
-        # get move
-        final_move = agent.get_action(state_old)
-
-        processed_move = [0] * 3
-        processed_move[np.argmax(final_move)] = 1
-
-        # perform move and get new state
-        reward, done, score = game.play_step(processed_move)
-        state_new = game.get_state()
-
-        # remember
-        agent.remember(state_old, final_move, reward, state_new, done)
-
-    agent.epsilon_decay(decay_rate)
-    game.reset()
-
-    return score
-
-def train(model_path_name):
-    agent = Agent([11, 512, 3], batch_size=1000)
-    game = SnakeGameAI()
-
-    decay_rate = 0.99
-
-    n_games = 500
-
-    try:
-        for current_game in range(n_games):
-            score = play_game(game, agent, decay_rate)
-
-            # train agent with replay buffer
-            cost = agent.train_long_memory()
-
-            print('Game', current_game, 'Score', score, 'Cost:', cost)
-    except KeyboardInterrupt:
-        pass
-
-    print('Saving model...')
-    agent.save(model_path_name)
-    
-def evauluate(model_filename):
-    agent = Agent([11, 40, 40, 3])
-    agent.load(model_filename)
-    agent.epsilon_decay(0.0)
-
-    game = SnakeGameAI()
-
-    n_games = 200
-    for current_game in range(n_games):
-
-        # train agent with replay buffer
-        score = play_game(game, agent, 0.0)
-
-        print('Game', current_game, 'Score', score)
-
-if __name__ == '__main__':
-
-    # Parse CLI arguments
-
+def parse_arguments():
     parser = argparse.ArgumentParser(description='Trains/evaluates a learning model playing the Snake game')
 
-    parser.add_argument('-f', '--filename', default='tmp.pth', help='An optional argument for specifying file name of the model to store or load')
+    parser.add_argument('-f', '--filepath', default='model.pth', help='An optional argument for specifying file name of the model to store or load')
     parser.add_argument('-e', '--eval', action='store_true', help='An optional argument for specifying the program to run in evaluation mode instead of training mode')
+    parser.add_argument('-g', '--gui', action='store_true', help='An optional argument for specifying the program to run with a GUI')
 
     args = parser.parse_args()
 
-    # Run program
+    return args.filepath, args.eval, args.gui
 
-    model_path = args.filename
-    
-    if args.eval:
-        print(f'{model_path} loaded as model')
-        evauluate(model_path)
-    else:
-        print(f'Model will be saved as {model_path}')
-        train(model_path)
+def main():
+
+    # Read command-line arguments
+    filepath, eval, gui = parse_arguments()
+
+    n_episodes = 300
+
+    # Construct the environment
+    env = SnakeGameEnv()
+
+
+    # Get number of actions and state observations
+    n_actions = 3
+    n_observations = 11
+
+    # if gpu is to be used
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Initialize an agent
+    agent = Agent(n_observations, n_actions, device=device)
+
+
+    if eval:
+        # Load existing model
+        agent.policy_net.load(filepath)
+
+    try:
+        for i_episode in range(n_episodes):
+
+            score = agent.play_episode(env, eval)
+            print('Game:', i_episode, 'Score:', score)
+    except KeyboardInterrupt:
+        print('\tStopping training/evaluation...')
+
+    if not eval:
+        # Save trained model
+        agent.policy_net.save(filepath)
+
+    print('Complete')
+
+main()

@@ -103,10 +103,10 @@ class Agent:
             next_state_values[non_final_mask] = self.target_net(non_final_next_states).max(1)[0]
         # Compute the expected Q values
         expected_state_action_values = (next_state_values * self._gamma) + reward_batch
-
+        
         # Compute Huber loss
         loss = self.criterion(state_action_values, expected_state_action_values.unsqueeze(1))
-
+        
         # Optimize the model
         self.optimizer.zero_grad()
         loss.backward()
@@ -134,7 +134,7 @@ class Agent:
             action = self.select_action(state, env)
             observation, reward, terminated, truncated, _ = env.step(action.item())
 
-            reward = torch.tensor(reward, device=self._device).reshape((1,))
+            reward = torch.tensor(reward, dtype=torch.float32, device=self._device).reshape((1,))
             observation = torch.tensor(observation, dtype=torch.float32, device=self._device).reshape((1, self._n_observations))
 
             next_state = None if terminated else observation
@@ -167,7 +167,7 @@ class Agent:
                 # we pick action with the larger expected reward.
                 return torch.argmax(self.policy_net.forward(state)).reshape((1, 1))
         else:
-            return torch.tensor(env.action_space.sample(), device=self._device, dtype=torch.long).reshape((1, 1))
+            return torch.tensor(random.randint(0, self._n_actions - 1), device=self._device, dtype=torch.long).reshape((1, 1))
 
     def set_epsilon(self, epsilon):
         self._network.set_epsilon(epsilon)
